@@ -8,7 +8,7 @@ When opening the serialization tools, you'll see a new button - pressing the but
 Ruby automatically checks if your serializer is up to date every 10 minutes, so doing manual checks should be done rarely. You can disable Ruby's automatic background checks by adding a `NoBackgroundChecks` attribute set to `true` on the `ReplicatedStorage/Plugins/Ruby` folder.
 
 ## Terms of Use
-- You may **not** use Ruby to build SerializationTools; use a different method for that (you'd end up with a broken *Fetch Source* button anyway).  
+- You may **not** use Ruby to create distributable builds of SerializationTools; use a different method for that (you'd end up with a broken *Fetch Source* button anyway).  
 - All modifications made to Ruby must be shared publicly with full source code to allow others to benefit from your changes.
 
 ## Trivia
