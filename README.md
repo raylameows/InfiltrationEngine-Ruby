@@ -3,7 +3,11 @@ Ruby is an automatic update fetcher for [InfiltrationEngine-Custom-Missions](htt
 
 Ruby will automatically fetch **SerializationTools** and set it up for you in `ReplicatedStorage/Plugins/Ruby/SerializationTools`. This folder is also used as a cache to prevent sending a million HTTP requests every time you open Studio.
 
-## Terms Of Use
+## Usage
+When opening the serialization tools, you'll see a new button - pressing the button once will check if your serializer is up to date, pressing it twice will build the serializer from source. It is heavily recommended that you don't treat this button as a toy, unless you like getting HTTP 403 errors.
+Ruby automatically checks if your serializer is up to date every 10 minutes, so doing manual checks should be done rarely. You can disable Ruby's automatic background checks by adding a `NoBackgroundChecks` attribute set to `true` on the `ReplicatedStorage/Plugins/Ruby` folder.
+
+## Terms of Use
 - You may **not** use Ruby to build SerializationTools; use a different method for that (you'd end up with a broken *Fetch Source* button anyway).  
 - All modifications made to Ruby must be shared publicly with full source code to allow others to benefit from your changes.
 
