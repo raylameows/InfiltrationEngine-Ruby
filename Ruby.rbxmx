@@ -1,7 +1,7 @@
 <roblox xmlns:xmime="http://www.w3.org/2005/05/xmlmime" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://www.roblox.com/roblox.xsd" version="4">
 	<External>null</External>
 	<External>nil</External>
-	<Item class="Folder" referent="RBXB7E82596D2F740ACA6F8AF8772919567">
+	<Item class="Folder" referent="RBXCC5C41B4E44A41ABBD7516A6F5B169E3">
 		<Properties>
 			<BinaryString name="AttributesSerialize"></BinaryString>
 			<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
@@ -10,119 +10,7 @@
 			<int64 name="SourceAssetId">-1</int64>
 			<BinaryString name="Tags"></BinaryString>
 		</Properties>
-		<Item class="Script" referent="RBX5D2DC570EBE9421E88D5EE24D2689110">
-			<Properties>
-				<ProtectedString name="Source"><![CDATA[local CollectionService = game:GetService("CollectionService")
-local HttpService = game:GetService("HttpService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
-local RayUtil = require(`./RayUtil`)
-local Ruby = require(`./Ruby`)
-Ruby.Plugin = plugin
-
-local Toolbar = plugin:CreateToolbar("Ruby")
-local Button = Toolbar:CreateButton(`Ruby`, `Fetches the most recent serializer from the Github and automatically adds itself as a plugin`, `rbxassetid://92473074743015`)
-Ruby.Button = Button
-
-local PluginsFolder = RayUtil.getFolder(ReplicatedStorage, `Plugins`, true)
-local RubyPluginFolder = PluginsFolder and RayUtil.getFolder(PluginsFolder, `Ruby`, true)
-local CachedExporter = RubyPluginFolder and RubyPluginFolder:FindFirstChild(`SerializationTools`)
-if CachedExporter then
-	Ruby.backgroundChecks(true)
-end
-Ruby.RubyPluginFolder = RubyPluginFolder
-
-local deb = false
-Button.Click:Connect(function()
-	if deb then return end
-	PluginsFolder = RayUtil.getFolder(ReplicatedStorage, `Plugins`)
-	RubyPluginFolder = RayUtil.getFolder(PluginsFolder, `Ruby`)
-	CachedExporter = RubyPluginFolder:FindFirstChild(`SerializationTools`)
-	Ruby.RubyPluginFolder = RubyPluginFolder
-	
-	if not CachedExporter then
-		deb = true
-		Ruby.fetch(RubyPluginFolder)
-		task.wait()
-		deb = false
-		return
-	elseif CachedExporter and not Ruby.Exporter then
-		deb = true
-		Ruby.hookAttributeChanges(CachedExporter, RubyPluginFolder)
-		Ruby.Root = CachedExporter
-		Ruby.Exporter = require(CachedExporter.Writing.Main)
-		task.wait()
-		deb = false
-	end
-	
-	if not Ruby.Active then
-		Ruby.Active = true
-		plugin:Activate(true)
-		Ruby.Exporter.Init(plugin:GetMouse())
-		Ruby.getFetchSourceButton()
-		Ruby.updateStatus()
-		local button: TextButton = Ruby.FetchSourceButton
-		if button then
-			local lastClickTime = 0
-			local doubleClickThreshold = 0.3
-
-			button.Activated:Connect(function()
-				local currentTime = tick()
-				if currentTime - lastClickTime <= doubleClickThreshold then
-					print("Ruby :: Performing refetch")
-					CachedExporter:SetAttribute("Refetch", true)
-				else
-					task.delay(doubleClickThreshold, function()
-						if tick() - lastClickTime >= doubleClickThreshold then
-							print("Ruby :: Performing update check")
-							local outdated = Ruby.checkForUpdate(true)
-							if outdated == false then
-								print("Ruby :: Serializer is up to date")
-							elseif outdated == true then
-								print("Ruby :: Serializer is outdated")
-							end
-						end
-					end)
-				end
-
-				lastClickTime = currentTime
-			end)
-		end
-	else
-		Ruby.Active = false
-		plugin:Deactivate()
-	end
-end)
-
-local function Disable()
-	if Ruby.Exporter then
-		Ruby.Exporter.Clean()
-	end
-	if Ruby.FetchSourceButton then
-		Ruby.FetchSourceButton = nil
-	end
-	Ruby.Active = false
-end
-
-local function Unload()
-	Disable()
-end
-
-plugin.Unloading:Connect(Unload)
-plugin.Deactivation:Connect(Disable)]]></ProtectedString>
-				<bool name="Disabled">false</bool>
-				<Content name="LinkedSource"><null></null></Content>
-				<token name="RunContext">0</token>
-				<string name="ScriptGuid">{8b268a70-c52c-4efc-b66c-59a475d1b1fd}</string>
-				<BinaryString name="AttributesSerialize"></BinaryString>
-				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
-				<bool name="DefinesCapabilities">false</bool>
-				<string name="Name">Main</string>
-				<int64 name="SourceAssetId">-1</int64>
-				<BinaryString name="Tags"></BinaryString>
-			</Properties>
-		</Item>
-		<Item class="ModuleScript" referent="RBX5C2D892BA90B4D95AD67B6E0B1313FC3">
+		<Item class="ModuleScript" referent="RBX105369AC5BEE4CC5B0F3FDCDBF577CAC">
 			<Properties>
 				<Content name="LinkedSource"><null></null></Content>
 				<ProtectedString name="Source"><![CDATA[local HttpService = game:GetService("HttpService")
@@ -134,6 +22,8 @@ GithubLoader.FileTypeToInstance = {
 	[`file.server.lua`] = `Script`,
 	[`file.lua`] = `ModuleScript`,
 }
+GithubLoader.RequestsProcessing = 0
+GithubLoader.LastProcessed = 0
 
 function GithubLoader.toProxy(url: string)
 	local pattern = "^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/([^/]+)/(.*)$"
@@ -148,24 +38,24 @@ function GithubLoader.toProxy(url: string)
 	return jsDelivrUrl
 end
 
-function GithubLoader.call(holder: Folder, url: string)
-	holder:SetAttribute(`RequestsProcessing`, holder:GetAttribute(`RequestsProcessing`) + 1)
+function GithubLoader.call(url: string)
+	GithubLoader.RequestsProcessing += 1
 	local success, response = pcall(function()
 		return HttpService:GetAsync(url)
 	end)
-	
-	holder:SetAttribute(`RequestsProcessing`, holder:GetAttribute(`RequestsProcessing`) - 1)
-	holder:SetAttribute(`LastProcessed`, tick())
+
+	GithubLoader.RequestsProcessing -= 1
+	GithubLoader.LastProcessed = tick()
 	return success, response
 end
 
 function GithubLoader.dir(holder: Folder, folder: Folder, url: string)
 	print(`GithubLoader :: Loading {url}`)
 	folder = folder or holder
-	
-	local success, response = GithubLoader.call(holder, url)
+
+	local success, response = GithubLoader.call(url)
 	if not success then warn(`GithubLoader :: {response}`) return end
-	
+
 	local files = HttpService:JSONDecode(response)
 	local currentBatch = 0
 	for _, fileData in (files) do
@@ -181,7 +71,7 @@ function GithubLoader.dir(holder: Folder, folder: Folder, url: string)
 			end)
 		elseif fileData.download_url then
 			task.spawn(function()
-				local success, response = GithubLoader.call(holder, GithubLoader.toProxy(fileData.download_url))
+				local success, response = GithubLoader.call(GithubLoader.toProxy(fileData.download_url))
 				if not success then warn(`GithubLodaer :: {response}`) return end
 				obj.Source = response
 			end)
@@ -192,16 +82,14 @@ end
 function GithubLoader.repo(url: string, name: string?, yield: boolean?)
 	local folder = Instance.new(`Folder`)
 	folder.Name = name or `RubySerializerFolder`
-	folder:SetAttribute(`RequestsProcessing`, 0)
-	folder:SetAttribute(`LastProcessed`, tick())
 	folder.Parent = ReplicatedStorage
-	
+
 	GithubLoader.dir(folder, nil, url)
-	
-	if yield and folder:GetAttribute(`RequestsProcessing`) then
-		repeat task.wait() until folder:GetAttribute(`RequestsProcessing`) == 0 and tick() - folder:GetAttribute(`LastProcessed`) >= 1
+
+	if yield then
+		repeat task.wait() until GithubLoader.RequestsProcessing == 0 and tick() - GithubLoader.LastProcessed >= 1
 	end
-	
+
 	return folder
 end
 
@@ -215,200 +103,7 @@ return GithubLoader]]></ProtectedString>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBXF5B9DB0A08544A93BBE7CD78FA850C93">
-			<Properties>
-				<Content name="LinkedSource"><null></null></Content>
-				<ProtectedString name="Source"><![CDATA[local CollectionService = game:GetService("CollectionService")
-local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
-
-local GithubLoader = require(`./GithubLoader`)
-
-local Ruby = {}
-Ruby.RubyPluginFolder = nil
-Ruby.Button = nil
-Ruby.Exporter = nil
-Ruby.Root = nil
-Ruby.FetchSourceButton = nil
-Ruby.BackgroundChecks = false
-Ruby.Outdated = false
-Ruby.LoadingIDs = {
-	138016358530888, 70597296726422, 127832681223670, 83695390279728, 133089274035459, 84382514433800, 
-	78784862813485, 112194325401656, 139036767631117, 102076830057398, 131568282874164
-}
-
-function Ruby.backgroundChecks(enabled: boolean)
-	if Ruby.BackgroundChecks == enabled then return end
-	
-	Ruby.BackgroundChecks = enabled
-	if Ruby.BackgroundChecks then
-		task.spawn(function()
-			while Ruby.BackgroundChecks do
-				task.wait(10*60)
-				if not Ruby.BackgroundChecks then break end
-				Ruby.checkForUpdate()
-			end
-		end)
-	end
-end
-
-function Ruby.checkForUpdate(noPrint: boolean?)
-	if (not Ruby.Root or not Ruby.Root.Parent) then 
-		Ruby.backgroundChecks(false) 
-		return nil
-	end
-	
-	local recent = Ruby.getLatestUpdate(Ruby.Root)
-	if recent == nil then return nil end
-	
-	if recent ~= Ruby.Root:GetAttribute(`Date`) then
-		if not Ruby.Outdated and not noPrint then
-			warn(`Ruby :: Detected new SerializationTools commit`)
-		end
-		Ruby.Outdated = true
-		Ruby.updateStatus()
-		return true
-	end
-	
-	return false
-end
-
-function Ruby.updateStatus()
-	if Ruby.FetchSourceButton then
-		Ruby.FetchSourceButton.BackgroundColor3 = Ruby.Outdated and Color3.fromRGB(255, 38, 52) or Color3.fromRGB(0, 0, 0)
-	end
-end
-
-function Ruby.getFetchSourceButton()
-	local possible = CollectionService:GetTagged(`RubySerializerFetchSourceButton`)
-	for _,button in (possible) do
-		if button:IsA(`TextButton`) and button.Text == `Fetch Source` and button:IsDescendantOf(CoreGui) then
-			Ruby.FetchSourceButton = button
-			return button
-		end
-	end
-	
-	return nil
-end
-
-function Ruby.getLatestUpdate(serializer: Folder)
-	local success, data = GithubLoader.call(
-		serializer,
-		`https://api.github.com/repos/MoonstoneSkies/InfiltrationEngine-Custom-Missions/commits?path=Plugins/src/SerializationTools&per_page=1`
-	)
-	if not success then warn(`Ruby :: Checking SerializationTools failed {data}`) return end
-	data = HttpService:JSONDecode(data)
-
-	local lastUpdate = data[1].commit.committer.date
-	return lastUpdate
-end
-
-function Ruby.fetch(cache: Folder)
-	local loaded = false do
-		task.spawn(function()
-			local prevImg = Ruby.Button.Icon
-			while not loaded do
-				for i,v in (Ruby.LoadingIDs) do
-					Ruby.Button.Icon = `rbxassetid://{v}`
-					task.wait(0.08)
-				end
-			end
-			Ruby.Button.Icon = prevImg
-		end)
-	end
-
-	local folder = workspace:FindFirstChild(`SerializationToolsDebug`) and workspace.SerializationToolsDebug:Clone() or GithubLoader.repo(
-		`https://api.github.com/repos/MoonstoneSkies/InfiltrationEngine-Custom-Missions/contents/Plugins/src/SerializationTools`, 
-		`SerializationTools`, 
-		true
-	)
-	if not folder:GetAttribute(`RequestsProcessing`) then
-		folder:SetAttribute(`RequestsProcessing`, 0)
-	end
-
-	folder.Name = `SerializationTools`
-	folder.Parent = cache
-
-	local mainWriting = folder:FindFirstChild(`Writing`) and folder.Writing:FindFirstChild(`Main`)
-	if not mainWriting then 
-		warn(`Ruby :: Main/Writing.lua is missing`) 
-		loaded = true
-		folder:Destroy()
-		return 
-	end
-
-	Ruby.Root = folder
-	folder:SetAttribute(`Date`, `recent`)
-	task.spawn(function()
-		folder:SetAttribute(`Date`, Ruby.getLatestUpdate(folder))
-	end)
-
-	local injections = {
-		[`local%s+readbackEnabled%s*=%s*FeatureCheck%("Readback"%)%s*==%s*true`] = 
-		[[
-		local fetchSourceButton = Button({
-			Size = UDim2.new(0, 200, 0, 30),
-			Enabled = module.EnabledState,
-			Position = UDim2.new(0, apiDevEnabled and 270 or 50, 1, -50),
-			AnchorPoint = Vector2.new(0, 1),
-			Text = `Fetch Source`,
-		})
-		fetchSourceButton:AddTag(`RubySerializerFetchSourceButton`)
-		]],
-
-		[`(%s*Create%(%\"ScrollingFrame\"%s*,)`] = 
-		[[
-		fetchSourceButton,
-		]],
-	}
-	local modified = mainWriting.Source
-	for pattern,inject in (injections) do
-		modified = modified:gsub(pattern, inject .. `\n%1`, 1)
-	end
-	mainWriting.Source = modified
-	task.wait(0.5)
-	Ruby.hookAttributeChanges(folder, cache)
-	if Ruby.Exporter then Ruby.Exporter.Clean() end
-	Ruby.Exporter = require(mainWriting)
-	task.wait(0.5)
-	loaded = true
-	Ruby.backgroundChecks(true)
-end
-
-function Ruby.hookAttributeChanges(folder: Folder, cache: Folder)
-	folder:GetAttributeChangedSignal(`Refetch`):Connect(function()
-		local nv = folder:GetAttribute(`Refetch`)
-		folder:SetAttribute(`Refetch`, nil)
-
-		if nv then
-			Ruby.Active = false
-			Ruby.Plugin:Deactivate()
-			folder:Destroy()
-			Ruby.fetch(cache)
-		end
-	end)
-	
-	folder:GetAttributeChangedSignal(`NoBackgroundChecks`):Connect(function()
-		local nv = folder:GetAttribute(`NoBackgroundChecks`)
-		if nv == true then
-			Ruby.backgroundChecks(false)
-		else
-			Ruby.backgroundChecks(true)
-		end
-	end)
-end
-
-return Ruby]]></ProtectedString>
-				<string name="ScriptGuid">{a6eecf96-7338-5585-db79-0e702a348b5a}</string>
-				<BinaryString name="AttributesSerialize"></BinaryString>
-				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
-				<bool name="DefinesCapabilities">false</bool>
-				<string name="Name">Ruby</string>
-				<int64 name="SourceAssetId">-1</int64>
-				<BinaryString name="Tags"></BinaryString>
-			</Properties>
-		</Item>
-		<Item class="ModuleScript" referent="RBXBDC2B87DDCFD4A2E9C13FFA7F2F8A604">
+		<Item class="ModuleScript" referent="RBXA2E9B53B9BA041AB8107FA9B180C422D">
 			<Properties>
 				<Content name="LinkedSource"><null></null></Content>
 				<ProtectedString name="Source"><![CDATA[local RayUtil = {}
@@ -431,6 +126,358 @@ return RayUtil]]></ProtectedString>
 				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
 				<bool name="DefinesCapabilities">false</bool>
 				<string name="Name">RayUtil</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX5B68A318F615411CAF47FABDD9B23E17">
+			<Properties>
+				<Content name="LinkedSource"><null></null></Content>
+				<ProtectedString name="Source"><![CDATA[local CollectionService = game:GetService("CollectionService")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+
+local GithubLoader = require(`./GithubLoader`)
+
+local Ruby = {}
+Ruby.Plugin = nil -- The `plugin` instance
+Ruby.Exporter = nil -- The required SerializationTools Writing/Main.lua Mod
+Ruby.Folder = nil -- The folder containing the SerializationTools, stored in CoreGui
+Ruby.Button = nil -- The plugin button
+Ruby.FetchSourceButton = nil -- The UI button used to perform a checkup or a refetch
+Ruby.SerializerAPI = nil -- The API of SerializationTools
+
+Ruby.BackgroundChecks = false -- Whether background checks are enabled
+Ruby.Active = false -- Whether the plugin is currently enabled
+Ruby.Outdated = false -- Whether the SerializationTools are outdated
+
+Ruby.LoadingIDs = { -- An array of image IDs for a loading GIF
+	138016358530888, 70597296726422, 127832681223670, 83695390279728, 133089274035459, 84382514433800, 
+	78784862813485, 112194325401656, 139036767631117, 102076830057398, 131568282874164
+}
+
+function Ruby.encode(dir: Folder?)
+	local encode = {}
+	for _,file: Instance in (dir and dir:GetChildren() or Ruby.Folder:GetChildren()) do
+		if file:IsA(`LuaSourceContainer`) then
+			table.insert(encode, {
+				Class = file.ClassName,
+				Source = file.Source,
+				Name = file.Name,
+			})
+		elseif file:IsA(`Folder`) then
+			table.insert(encode, {
+				Class = file.ClassName,
+				Name = file.Name,
+				Contents = Ruby.encode(file)
+			})
+		end
+	end
+
+	return HttpService:JSONEncode(encode)
+end
+
+function Ruby.decode(str: string)
+	local decoded = HttpService:JSONDecode(str)
+	for _,file in (decoded) do
+		if file.Contents then
+			file.Contents = Ruby.decode(file.Contents)
+		end
+	end
+
+	return decoded
+end
+
+function Ruby.build(tbl: {[number]: {}}, at: Instance)
+	for _,file in (tbl) do
+		local inst = Instance.new(file.Class)
+		inst.Name = file.Name
+		if file.Source then
+			inst.Source = file.Source
+		end
+		if file.Contents then
+			Ruby.build(file.Contents, inst)
+		end
+		inst.Parent = at
+	end
+	
+	return at
+end
+
+function Ruby.backgroundChecks(enabled: boolean)
+	if Ruby.BackgroundChecks == enabled then return end
+
+	Ruby.BackgroundChecks = enabled
+	if Ruby.BackgroundChecks then
+		task.spawn(function()
+			while Ruby.BackgroundChecks do
+				task.wait(10*60)
+				if not Ruby.BackgroundChecks then break end
+				Ruby.checkForUpdate()
+			end
+		end)
+	end
+end
+
+function Ruby.checkForUpdate(noPrint: boolean?)
+	--if (not Ruby.Root or not Ruby.Root.Parent) then 
+	--	Ruby.backgroundChecks(false) 
+	--	return nil
+	--end
+
+	local recent = Ruby.getLatestUpdate()
+	if recent == nil then return nil end
+
+	if recent ~= Ruby.Plugin:GetSetting(`Date`) then
+		if not Ruby.Outdated and not noPrint then
+			warn(`Ruby :: Detected new SerializationTools commit`)
+		end
+		Ruby.Outdated = true
+		Ruby.updateStatus()
+		return true
+	end
+
+	return false
+end
+
+function Ruby.updateStatus()
+	if Ruby.FetchSourceButton then
+		Ruby.FetchSourceButton.BackgroundColor3 = Ruby.Outdated and Color3.fromRGB(255, 38, 52) or Color3.fromRGB(0, 0, 0)
+	end
+end
+
+function Ruby.getFetchSourceButton()
+	local possible = CollectionService:GetTagged(`RubySerializerFetchSourceButton`)
+	for _,button in (possible) do
+		if button:IsA(`TextButton`) and button:IsDescendantOf(CoreGui) then
+			Ruby.FetchSourceButton = button
+			return button
+		end
+	end
+
+	return nil
+end
+
+function Ruby.getLatestUpdate()
+	local success, data = GithubLoader.call(
+		`https://api.github.com/repos/MoonstoneSkies/InfiltrationEngine-Custom-Missions/commits?path=Plugins/src/SerializationTools&per_page=1`
+	)
+	if not success then warn(`Ruby :: Checking SerializationTools failed {data}`) return end
+	data = HttpService:JSONDecode(data)
+
+	local lastUpdate = data[1].commit.committer.date
+	return lastUpdate
+end
+
+function Ruby.fetch()
+	local loaded = false do
+		task.spawn(function()
+			local prevImg = Ruby.Button.Icon
+			while not loaded do
+				for i,v in (Ruby.LoadingIDs) do
+					Ruby.Button.Icon = `rbxassetid://{v}`
+					task.wait(0.08)
+				end
+			end
+			Ruby.Button.Icon = prevImg
+		end)
+	end
+
+	local folder = workspace:FindFirstChild(`SerializationToolsDebug`) and workspace.SerializationToolsDebug:Clone() or GithubLoader.repo(
+		`https://api.github.com/repos/MoonstoneSkies/InfiltrationEngine-Custom-Missions/contents/Plugins/src/SerializationTools`, 
+		`SerializationToolsRuby`, 
+		true
+	)
+	folder.Archivable = false
+	folder.Name = `SerializationToolsRuby`
+	folder.Parent = CoreGui
+
+	local mainWriting = folder:FindFirstChild(`Writing`) and folder.Writing:FindFirstChild(`Main`)
+	local mainAPI = folder:FindFirstChild(`API`) and folder.API:FindFirstChild(`Main`)
+	if not mainWriting or not mainAPI then 
+		warn(`Ruby :: {not mainWriting and `Writing/` or `API/`}Main.lua is missing`) 
+		loaded = true
+		folder:Destroy()
+		return 
+	end
+
+	Ruby.Folder = folder
+	Ruby.Plugin:SetSetting(`Date`, `recent`)
+	task.spawn(function()
+		Ruby.Plugin:SetSetting(`Date`, Ruby.getLatestUpdate(folder))
+	end)
+
+	local injections = {
+		[`local%s+readbackEnabled%s*=%s*FeatureCheck%("Readback"%)%s*==%s*true`] = 
+		[[
+		local fetchSourceButton = Button({
+			Size = UDim2.new(0, 200, 0, 30),
+			Enabled = module.EnabledState,
+			Position = UDim2.new(0, apiDevEnabled and 270 or 50, 1, -50),
+			AnchorPoint = Vector2.new(0, 1),
+			Text = `Ruby: Check`,
+		})
+		fetchSourceButton:AddTag(`RubySerializerFetchSourceButton`)
+		]],
+
+		[`(%s*Create%(%\"ScrollingFrame\"%s*,)`] = 
+		[[
+		fetchSourceButton,
+		]],
+	}
+	local modified = mainWriting.Source
+	for pattern,inject in (injections) do
+		modified = modified:gsub(pattern, inject .. `\n%1`, 1)
+	end
+	mainWriting.Source = modified
+	task.wait(0.5)
+	if Ruby.Exporter then Ruby.Exporter.Clean() end
+	Ruby.SerializerAPI = require(mainAPI)
+	Ruby.SerializerAPI.Init()
+	Ruby.Exporter = require(mainWriting)
+	Ruby.Plugin:SetSetting(`Cache`, Ruby.encode(folder))
+	task.wait(0.5)
+	loaded = true
+	Ruby.backgroundChecks(true)
+end
+
+function Ruby.refetch()
+	Ruby.Active = false
+	Ruby.Plugin:Deactivate()
+	Ruby.Folder:Destroy()
+	Ruby.fetch()
+end
+
+return Ruby]]></ProtectedString>
+				<string name="ScriptGuid">{a6eecf96-7338-5585-db79-0e702a348b5a}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Ruby</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="Script" referent="RBX374F534DE08A4DB1AD5BD852C8C8C769">
+			<Properties>
+				<ProtectedString name="Source"><![CDATA[local CollectionService = game:GetService("CollectionService")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local RayUtil = require(`./RayUtil`)
+local Ruby = require(`./Ruby`)
+Ruby.Plugin = plugin
+
+local Toolbar = plugin:CreateToolbar("Ruby")
+local Button = Toolbar:CreateButton(`Ruby`, `Fetches the most recent serializer from the Github and automatically adds itself as a plugin`, `rbxassetid://92473074743015`)
+Ruby.Button = Button
+
+local deb = false
+Button.Click:Connect(function()
+	if deb then return end
+	
+	local Cache = plugin:GetSetting(`Cache`)
+	if not Cache then
+		deb = true
+		Ruby.fetch()
+		task.wait()
+		deb = false
+		return
+	elseif Cache and not Ruby.Exporter then
+		deb = true
+		local folder = Instance.new(`Folder`)
+		folder.Archivable = false
+		folder.Name = `SerializationToolsRuby`
+		folder.Parent = CoreGui
+		Ruby.build(Ruby.decode(Cache), folder)
+		Ruby.Exporter = require(folder.Writing.Main)
+		Ruby.Folder = folder
+		task.wait()
+		deb = false
+	end
+
+	if not Ruby.Active then
+		Ruby.Active = true
+		plugin:Activate(true)
+		Ruby.Exporter.Init(plugin:GetMouse())
+		Ruby.getFetchSourceButton()
+		Ruby.updateStatus()
+		local button: TextButton = Ruby.FetchSourceButton
+		if button then
+			local lastClickTime = 0
+			local doubleClickThreshold = 0.3
+			local rubyButtonDeb = false
+			local awaitingSecondClick = false
+
+			button.Activated:Connect(function()
+				if rubyButtonDeb then return end
+				local currentTime = tick()
+				if awaitingSecondClick and (currentTime - lastClickTime <= doubleClickThreshold) then
+					awaitingSecondClick = false
+					button.Text = `Ruby: Check`
+					print(`Ruby :: Performing refetch`)
+					Ruby.refetch()
+					return
+				end
+
+				awaitingSecondClick = true
+				button.Text = `Ruby: Fetch`
+
+				task.delay(doubleClickThreshold, function()
+					if awaitingSecondClick then
+						awaitingSecondClick = false
+						button.Text = `Ruby: Check`
+
+						print(`Ruby :: Performing update check`)
+						local outdated = Ruby.checkForUpdate(true)
+						if outdated == false then
+							print(`Ruby :: Serializer is up to date`)
+						elseif outdated == true then
+							print(`Ruby :: Serializer is outdated`)
+						end
+					end
+				end)
+
+				lastClickTime = currentTime
+			end)
+		end
+	else
+		Ruby.Active = false
+		plugin:Deactivate()
+	end
+end)
+
+local function Disable()
+	if Ruby.Exporter then
+		Ruby.Exporter.Clean()
+	end
+	if Ruby.FetchSourceButton then
+		Ruby.FetchSourceButton = nil
+	end
+	Ruby.Active = false
+end
+
+local function Unload()
+	if Ruby.SerializerAPI then
+		Ruby.SerializerAPI.Clean()
+	end
+	Disable()
+	if Ruby.Folder then
+		Ruby.Folder:Destroy()
+	end
+end
+
+plugin.Unloading:Connect(Unload)
+plugin.Deactivation:Connect(Disable)]]></ProtectedString>
+				<bool name="Disabled">false</bool>
+				<Content name="LinkedSource"><null></null></Content>
+				<token name="RunContext">3</token>
+				<string name="ScriptGuid">{8b268a70-c52c-4efc-b66c-59a475d1b1fd}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">Main</string>
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>

@@ -7,6 +7,8 @@ GithubLoader.FileTypeToInstance = {
 	[`file.server.lua`] = `Script`,
 	[`file.lua`] = `ModuleScript`,
 }
+GithubLoader.RequestsProcessing = 0
+GithubLoader.LastProcessed = 0
 
 function GithubLoader.toProxy(url: string)
 	local pattern = "^https://raw%.githubusercontent%.com/([^/]+)/([^/]+)/([^/]+)/(.*)$"
@@ -21,24 +23,24 @@ function GithubLoader.toProxy(url: string)
 	return jsDelivrUrl
 end
 
-function GithubLoader.call(holder: Folder, url: string)
-	holder:SetAttribute(`RequestsProcessing`, holder:GetAttribute(`RequestsProcessing`) + 1)
+function GithubLoader.call(url: string)
+	GithubLoader.RequestsProcessing += 1
 	local success, response = pcall(function()
 		return HttpService:GetAsync(url)
 	end)
-	
-	holder:SetAttribute(`RequestsProcessing`, holder:GetAttribute(`RequestsProcessing`) - 1)
-	holder:SetAttribute(`LastProcessed`, tick())
+
+	GithubLoader.RequestsProcessing -= 1
+	GithubLoader.LastProcessed = tick()
 	return success, response
 end
 
 function GithubLoader.dir(holder: Folder, folder: Folder, url: string)
 	print(`GithubLoader :: Loading {url}`)
 	folder = folder or holder
-	
-	local success, response = GithubLoader.call(holder, url)
+
+	local success, response = GithubLoader.call(url)
 	if not success then warn(`GithubLoader :: {response}`) return end
-	
+
 	local files = HttpService:JSONDecode(response)
 	local currentBatch = 0
 	for _, fileData in (files) do
@@ -54,7 +56,7 @@ function GithubLoader.dir(holder: Folder, folder: Folder, url: string)
 			end)
 		elseif fileData.download_url then
 			task.spawn(function()
-				local success, response = GithubLoader.call(holder, GithubLoader.toProxy(fileData.download_url))
+				local success, response = GithubLoader.call(GithubLoader.toProxy(fileData.download_url))
 				if not success then warn(`GithubLodaer :: {response}`) return end
 				obj.Source = response
 			end)
@@ -65,16 +67,14 @@ end
 function GithubLoader.repo(url: string, name: string?, yield: boolean?)
 	local folder = Instance.new(`Folder`)
 	folder.Name = name or `RubySerializerFolder`
-	folder:SetAttribute(`RequestsProcessing`, 0)
-	folder:SetAttribute(`LastProcessed`, tick())
 	folder.Parent = ReplicatedStorage
-	
+
 	GithubLoader.dir(folder, nil, url)
-	
-	if yield and folder:GetAttribute(`RequestsProcessing`) then
-		repeat task.wait() until folder:GetAttribute(`RequestsProcessing`) == 0 and tick() - folder:GetAttribute(`LastProcessed`) >= 1
+
+	if yield then
+		repeat task.wait() until GithubLoader.RequestsProcessing == 0 and tick() - GithubLoader.LastProcessed >= 1
 	end
-	
+
 	return folder
 end
 
