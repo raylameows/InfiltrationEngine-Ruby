@@ -103,33 +103,6 @@ return GithubLoader]]></ProtectedString>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
 		</Item>
-		<Item class="ModuleScript" referent="RBXA2E9B53B9BA041AB8107FA9B180C422D">
-			<Properties>
-				<Content name="LinkedSource"><null></null></Content>
-				<ProtectedString name="Source"><![CDATA[local RayUtil = {}
-
--- Gets a folder from the designated parent, or creates one if necessary
-function RayUtil.getFolder(parent: Instance, name: string, optional: boolean)
-	local folder = parent:FindFirstChild(name)
-	if not folder and not optional then
-		folder = Instance.new(`Folder`)
-		folder.Name = name
-		folder.Parent = parent
-	end
-
-	return folder
-end
-
-return RayUtil]]></ProtectedString>
-				<string name="ScriptGuid">{d406c0eb-bf18-709d-2972-610e2ed64765}</string>
-				<BinaryString name="AttributesSerialize"></BinaryString>
-				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
-				<bool name="DefinesCapabilities">false</bool>
-				<string name="Name">RayUtil</string>
-				<int64 name="SourceAssetId">-1</int64>
-				<BinaryString name="Tags"></BinaryString>
-			</Properties>
-		</Item>
 		<Item class="ModuleScript" referent="RBX5B68A318F615411CAF47FABDD9B23E17">
 			<Properties>
 				<Content name="LinkedSource"><null></null></Content>
@@ -150,6 +123,8 @@ Ruby.SerializerAPI = nil -- The API of SerializationTools
 Ruby.BackgroundChecks = false -- Whether background checks are enabled
 Ruby.Active = false -- Whether the plugin is currently enabled
 Ruby.Outdated = false -- Whether the SerializationTools are outdated
+Ruby.ButtonPerformsFetch = false -- Whether the Ruby button should perform a refetch instead of a check
+Ruby.Prefix = `` -- The prefix for SetSetting and GetSetting
 
 Ruby.LoadingIDs = { -- An array of image IDs for a loading GIF
 	138016358530888, 70597296726422, 127832681223670, 83695390279728, 133089274035459, 84382514433800, 
@@ -228,13 +203,16 @@ function Ruby.checkForUpdate(noPrint: boolean?)
 	local recent = Ruby.getLatestUpdate()
 	if recent == nil then return nil end
 
-	if recent ~= Ruby.Plugin:GetSetting(`Date`) then
+	if recent ~= Ruby.Plugin:GetSetting(`{Ruby.Prefix}Date`) then
 		if not Ruby.Outdated and not noPrint then
 			warn(`Ruby :: Detected new SerializationTools commit`)
 		end
 		Ruby.Outdated = true
 		Ruby.updateStatus()
 		return true
+	elseif Ruby.Outdated then
+		Ruby.Outdated = false
+		Ruby.updateStatus()
 	end
 
 	return false
@@ -243,6 +221,8 @@ end
 function Ruby.updateStatus()
 	if Ruby.FetchSourceButton then
 		Ruby.FetchSourceButton.BackgroundColor3 = Ruby.Outdated and Color3.fromRGB(255, 38, 52) or Color3.fromRGB(0, 0, 0)
+		Ruby.FetchSourceButton.Text = `Ruby: {Ruby.Outdated and `Refetch` or `Check`}`
+		Ruby.ButtonPerformsFetch = Ruby.Outdated
 	end
 end
 
@@ -302,9 +282,11 @@ function Ruby.fetch()
 	end
 
 	Ruby.Folder = folder
-	Ruby.Plugin:SetSetting(`Date`, `recent`)
+	Ruby.Outdated = false
+	Ruby.updateStatus()
+	Ruby.Plugin:SetSetting(`{Ruby.Prefix}Date`, `meowmeowmeow`)
 	task.spawn(function()
-		Ruby.Plugin:SetSetting(`Date`, Ruby.getLatestUpdate(folder))
+		Ruby.Plugin:SetSetting(`{Ruby.Prefix}Date`, Ruby.getLatestUpdate(folder))
 	end)
 
 	local injections = {
@@ -335,7 +317,7 @@ function Ruby.fetch()
 	Ruby.SerializerAPI = require(mainAPI)
 	Ruby.SerializerAPI.Init()
 	Ruby.Exporter = require(mainWriting)
-	Ruby.Plugin:SetSetting(`Cache`, Ruby.encode(folder))
+	Ruby.Plugin:SetSetting(`{Ruby.Prefix}Cache`, Ruby.encode(folder))
 	task.wait(0.5)
 	loaded = true
 	Ruby.backgroundChecks(true)
@@ -365,9 +347,10 @@ local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local RayUtil = require(`./RayUtil`)
+local pluginPrefix = `RUBY_`
 local Ruby = require(`./Ruby`)
 Ruby.Plugin = plugin
+Ruby.Prefix = pluginPrefix
 
 local Toolbar = plugin:CreateToolbar("Ruby")
 local Button = Toolbar:CreateButton(`Ruby`, `Fetches the most recent serializer from the Github and automatically adds itself as a plugin`, `rbxassetid://92473074743015`)
@@ -376,8 +359,8 @@ Ruby.Button = Button
 local deb = false
 Button.Click:Connect(function()
 	if deb then return end
-	
-	local Cache = plugin:GetSetting(`Cache`)
+
+	local Cache = plugin:GetSetting(`{pluginPrefix}Cache`)
 	if not Cache then
 		deb = true
 		Ruby.fetch()
@@ -393,8 +376,15 @@ Button.Click:Connect(function()
 		Ruby.build(Ruby.decode(Cache), folder)
 		Ruby.Exporter = require(folder.Writing.Main)
 		Ruby.Folder = folder
+		task.spawn(function()
+			Ruby.checkForUpdate()
+		end)
 		task.wait()
 		deb = false
+	end
+	if plugin:GetSetting(`{pluginPrefix}EnableAllFeaturesByDefault`) and not workspace:GetAttribute(`RubyEnabledAllFeaturesByDefault`) then
+		workspace:SetAttribute(`SerializerEnableAllFeatures`, true)
+		workspace:SetAttribute(`RubyEnabledAllFeaturesByDefault`, true)
 	end
 
 	if not Ruby.Active then
@@ -405,41 +395,25 @@ Button.Click:Connect(function()
 		Ruby.updateStatus()
 		local button: TextButton = Ruby.FetchSourceButton
 		if button then
-			local lastClickTime = 0
-			local doubleClickThreshold = 0.3
 			local rubyButtonDeb = false
-			local awaitingSecondClick = false
-
 			button.Activated:Connect(function()
 				if rubyButtonDeb then return end
-				local currentTime = tick()
-				if awaitingSecondClick and (currentTime - lastClickTime <= doubleClickThreshold) then
-					awaitingSecondClick = false
-					button.Text = `Ruby: Check`
+				rubyButtonDeb = true
+				if Ruby.ButtonPerformsFetch then
 					print(`Ruby :: Performing refetch`)
 					Ruby.refetch()
 					return
-				end
-
-				awaitingSecondClick = true
-				button.Text = `Ruby: Fetch`
-
-				task.delay(doubleClickThreshold, function()
-					if awaitingSecondClick then
-						awaitingSecondClick = false
-						button.Text = `Ruby: Check`
-
-						print(`Ruby :: Performing update check`)
-						local outdated = Ruby.checkForUpdate(true)
-						if outdated == false then
-							print(`Ruby :: Serializer is up to date`)
-						elseif outdated == true then
-							print(`Ruby :: Serializer is outdated`)
-						end
+				else
+					print(`Ruby :: Performing update check`)
+					local outdated = Ruby.checkForUpdate(true)
+					if outdated == false then
+						print(`Ruby :: Serializer is up to date`)
+					elseif outdated == true then
+						print(`Ruby :: Serializer is outdated`)
 					end
-				end)
-
-				lastClickTime = currentTime
+				end
+				task.wait()
+				rubyButtonDeb = false
 			end)
 		end
 	else
@@ -469,7 +443,62 @@ local function Unload()
 end
 
 plugin.Unloading:Connect(Unload)
-plugin.Deactivation:Connect(Disable)]]></ProtectedString>
+plugin.Deactivation:Connect(Disable)
+
+local Arc = require(`./ArcAPI`)
+Arc.call(function()
+	Arc.new(`ruby`):Fill({
+		color = Color3.fromRGB(172, 13, 74),
+		subcommands = {
+			[`check`] = {
+				color = Color3.fromRGB(121, 146, 255),
+				run = function(data: {[string]: any})
+					local outdated = Ruby.checkForUpdate(true)
+					return `Serializer is {outdated and `outdated` or `up to date`}`
+				end,
+			},
+			[`fetch`] = {
+				color = Color3.fromRGB(121, 146, 255),
+				run = function(data: {[string]: any})
+					Ruby.refetch()
+					return `Refetched serializer`
+				end,
+			},
+			[`date`] = {
+				color = Color3.fromRGB(121, 146, 255),
+				args = {action = {order = 1}},
+				run = function(data: {[string]: any})
+					local action = data.args.action
+					if action == `clear` then
+						plugin:SetSetting(`{Ruby.Prefix}Date`, nil)
+					elseif action == `get` then
+						return `{plugin:GetSetting(`{Ruby.Prefix}Date`)}`
+					else
+						return `Unknown date action {action}`
+					end
+				end,
+			},
+			[`cache`] = {
+				color = Color3.fromRGB(121, 146, 255),
+				args = {
+					perform = {order = 1},
+				},
+				run = function(data: {[string]: any})
+					local action = data.args.perform
+					if action == `clear` then
+						plugin:SetSetting(`{Ruby.Prefix}Cache`, nil)
+						return `Cleared cache`
+					elseif action == `size` then
+						local size = #(plugin:GetSetting(`{Ruby.Prefix}Cache`) or ``) * 0.001
+						return `Cache size is {size}K`
+					else
+						return `Unknown cache action {action}`
+					end
+				end,
+			}
+		},
+	}):Register()
+end)]]></ProtectedString>
 				<bool name="Disabled">false</bool>
 				<Content name="LinkedSource"><null></null></Content>
 				<token name="RunContext">3</token>
@@ -478,6 +507,89 @@ plugin.Deactivation:Connect(Disable)]]></ProtectedString>
 				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
 				<bool name="DefinesCapabilities">false</bool>
 				<string name="Name">Main</string>
+				<int64 name="SourceAssetId">-1</int64>
+				<BinaryString name="Tags"></BinaryString>
+			</Properties>
+		</Item>
+		<Item class="ModuleScript" referent="RBX4BCE01BF46F641C78A72F382FE1EC4E3">
+			<Properties>
+				<Content name="LinkedSource"><null></null></Content>
+				<ProtectedString name="Source"><![CDATA[local CoreGui = game:GetService("CoreGui")
+
+local API = {}
+API.__index = API
+
+-- Initiates the API
+function API._init()
+	shared.ArcAPI = API
+	
+	local loaded = Instance.new(`BoolValue`)
+	loaded.Value = true
+	loaded.Name = `LoadedArcAPI`
+	loaded.Parent = CoreGui
+	
+	return
+end
+
+-- Checks if the API has loaded, fires the given function if it exists.
+function API.check()
+	local loaded = CoreGui:WaitForChild(`LoadedArcAPI`, 10)
+	if not loaded then return end
+	
+	return true
+end
+
+-- In a seperate thread, checks if the API has loaded and executes the given function.
+function API.call(call: () -> ())
+	task.spawn(function()
+		local loaded = CoreGui:WaitForChild(`LoadedArcAPI`, 10)
+		if not loaded then return end
+		call()
+	end)
+end
+
+-- Creates a new Arc command instance, does not register it in the commands list instantly
+function API.new(key: string): typeof(API)
+	local self = setmetatable({}, API)
+	self.Key = key
+	self.Command = {}
+	
+	return self
+end
+
+-- Sets the command's `field` to `value`
+function API:Set(field: string, value: any): typeof(API)
+	self.Command[field] = value
+
+	return self
+end
+
+-- Fills all the fields of the command with the data's keys and values
+function API:Fill(data: {}): typeof(API)
+	for k,v in (data) do
+		self.Command[k] = v
+	end
+	
+	return self
+end
+
+-- Registers the command to Arc's command list and removes it from cache
+function API:Register(): nil
+	if not shared.Arc then warn(`shared.Arc is missing`) return end
+	
+	shared.Arc.Commands[self.Key] = self.Command
+	table.clear(self)
+	self = nil
+	
+	return nil
+end
+
+return API]]></ProtectedString>
+				<string name="ScriptGuid">{c69d498a-7e46-55f6-2e85-ad8cb83f9810}</string>
+				<BinaryString name="AttributesSerialize"></BinaryString>
+				<SecurityCapabilities name="Capabilities">0</SecurityCapabilities>
+				<bool name="DefinesCapabilities">false</bool>
+				<string name="Name">ArcAPI</string>
 				<int64 name="SourceAssetId">-1</int64>
 				<BinaryString name="Tags"></BinaryString>
 			</Properties>
