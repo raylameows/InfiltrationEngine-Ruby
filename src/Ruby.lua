@@ -15,6 +15,8 @@ Ruby.SerializerAPI = nil -- The API of SerializationTools
 Ruby.BackgroundChecks = false -- Whether background checks are enabled
 Ruby.Active = false -- Whether the plugin is currently enabled
 Ruby.Outdated = false -- Whether the SerializationTools are outdated
+Ruby.ButtonPerformsFetch = false -- Whether the Ruby button should perform a refetch instead of a check
+Ruby.Prefix = `` -- The prefix for SetSetting and GetSetting
 
 Ruby.LoadingIDs = { -- An array of image IDs for a loading GIF
 	138016358530888, 70597296726422, 127832681223670, 83695390279728, 133089274035459, 84382514433800, 
@@ -65,7 +67,7 @@ function Ruby.build(tbl: {[number]: {}}, at: Instance)
 		end
 		inst.Parent = at
 	end
-
+	
 	return at
 end
 
@@ -93,13 +95,16 @@ function Ruby.checkForUpdate(noPrint: boolean?)
 	local recent = Ruby.getLatestUpdate()
 	if recent == nil then return nil end
 
-	if recent ~= Ruby.Plugin:GetSetting(`Date`) then
+	if recent ~= Ruby.Plugin:GetSetting(`{Ruby.Prefix}Date`) then
 		if not Ruby.Outdated and not noPrint then
 			warn(`Ruby :: Detected new SerializationTools commit`)
 		end
 		Ruby.Outdated = true
 		Ruby.updateStatus()
 		return true
+	elseif Ruby.Outdated then
+		Ruby.Outdated = false
+		Ruby.updateStatus()
 	end
 
 	return false
@@ -108,6 +113,8 @@ end
 function Ruby.updateStatus()
 	if Ruby.FetchSourceButton then
 		Ruby.FetchSourceButton.BackgroundColor3 = Ruby.Outdated and Color3.fromRGB(255, 38, 52) or Color3.fromRGB(0, 0, 0)
+		Ruby.FetchSourceButton.Text = `Ruby: {Ruby.Outdated and `Refetch` or `Check`}`
+		Ruby.ButtonPerformsFetch = Ruby.Outdated
 	end
 end
 
@@ -167,9 +174,11 @@ function Ruby.fetch()
 	end
 
 	Ruby.Folder = folder
-	Ruby.Plugin:SetSetting(`Date`, `recent`)
+	Ruby.Outdated = false
+	Ruby.updateStatus()
+	Ruby.Plugin:SetSetting(`{Ruby.Prefix}Date`, `meowmeowmeow`)
 	task.spawn(function()
-		Ruby.Plugin:SetSetting(`Date`, Ruby.getLatestUpdate(folder))
+		Ruby.Plugin:SetSetting(`{Ruby.Prefix}Date`, Ruby.getLatestUpdate(folder))
 	end)
 
 	local injections = {
@@ -200,7 +209,7 @@ function Ruby.fetch()
 	Ruby.SerializerAPI = require(mainAPI)
 	Ruby.SerializerAPI.Init()
 	Ruby.Exporter = require(mainWriting)
-	Ruby.Plugin:SetSetting(`Cache`, Ruby.encode(folder))
+	Ruby.Plugin:SetSetting(`{Ruby.Prefix}Cache`, Ruby.encode(folder))
 	task.wait(0.5)
 	loaded = true
 	Ruby.backgroundChecks(true)
