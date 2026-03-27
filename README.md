@@ -7,6 +7,7 @@ Ruby automatically fetches **SerializationTools** and caches them efficiently on
 When you open the serialization tools, you’ll see a new button created by Ruby. The button has two states:
 - **Check**, labeled `Ruby: Check` with a transparent-gray color. Pressing it will check if your serializer is up to date.
 - **Fetch**, labeled `Ruby: Fetch` with a transparent-red color. Pressing it will update your serializer. The button gets put in this state when Ruby detects that your serializer is outdated.
+
 Ruby automatically performs a background check every 10 minutes, assuming it has been used at least once in the currently opened Roblox Studio place, so performing manual checks isn't necessary.
 Feel free to open an issue or contact me on discord (**@raylameows**) if you encounter any problems or have any questions.
 
