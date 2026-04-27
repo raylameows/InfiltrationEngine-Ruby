@@ -2,6 +2,7 @@ local CollectionService = game:GetService("CollectionService")
 local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local pluginPrefix = `RUBY_`
 local Ruby = require(`./Ruby`)
@@ -11,6 +12,9 @@ Ruby.Prefix = pluginPrefix
 local Toolbar = plugin:CreateToolbar("Ruby")
 local Button = Toolbar:CreateButton(`Ruby`, `Fetches the most recent serializer from the Github and automatically adds itself as a plugin`, `rbxassetid://92473074743015`)
 Ruby.Button = Button
+
+local Connections = {}
+local holdingShift = false
 
 local deb = false
 Button.Click:Connect(function()
@@ -30,6 +34,8 @@ Button.Click:Connect(function()
 		folder.Name = `SerializationToolsRuby`
 		folder.Parent = CoreGui
 		Ruby.build(Ruby.decode(Cache), folder)
+		Ruby.SerializerAPI = require(folder.API.Main)
+		Ruby.SerializerAPI.Init()
 		Ruby.Exporter = require(folder.Writing.Main)
 		Ruby.Folder = folder
 		task.spawn(function()
@@ -49,6 +55,19 @@ Button.Click:Connect(function()
 		Ruby.Exporter.Init(plugin:GetMouse())
 		Ruby.getFetchSourceButton()
 		Ruby.updateStatus()
+		table.insert(Connections, UserInputService.InputBegan:Connect(function(input: InputObject, gpe: boolean)
+			if input.KeyCode == Enum.KeyCode.LeftShift then
+				holdingShift = true
+				Ruby.updateStatus(holdingShift)
+			end
+		end))
+		table.insert(Connections, UserInputService.InputEnded:Connect(function(input: InputObject, gpe: boolean)
+			if input.KeyCode == Enum.KeyCode.LeftShift then
+				holdingShift = false
+				Ruby.updateStatus(holdingShift)
+			end
+		end))
+		
 		local button: TextButton = Ruby.FetchSourceButton
 		if button then
 			local rubyButtonDeb = false
@@ -85,6 +104,10 @@ local function Disable()
 	if Ruby.FetchSourceButton then
 		Ruby.FetchSourceButton = nil
 	end
+	for _, connection in (Connections) do
+		connection:Disconnect()
+	end
+	holdingShift = false
 	Ruby.Active = false
 end
 

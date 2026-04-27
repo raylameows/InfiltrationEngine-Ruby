@@ -110,11 +110,11 @@ function Ruby.checkForUpdate(noPrint: boolean?)
 	return false
 end
 
-function Ruby.updateStatus()
+function Ruby.updateStatus(displayRefetch: boolean?)
 	if Ruby.FetchSourceButton then
 		Ruby.FetchSourceButton.BackgroundColor3 = Ruby.Outdated and Color3.fromRGB(255, 38, 52) or Color3.fromRGB(0, 0, 0)
-		Ruby.FetchSourceButton.Text = `Ruby: {Ruby.Outdated and `Refetch` or `Check`}`
-		Ruby.ButtonPerformsFetch = Ruby.Outdated
+		Ruby.FetchSourceButton.Text = `Ruby: {(Ruby.Outdated or displayRefetch) and `Refetch` or `Check`}`
+		Ruby.ButtonPerformsFetch = (Ruby.Outdated or displayRefetch)
 	end
 end
 
@@ -206,6 +206,7 @@ function Ruby.fetch()
 	mainWriting.Source = modified
 	task.wait(0.5)
 	if Ruby.Exporter then Ruby.Exporter.Clean() end
+	if Ruby.SerializerAPI then Ruby.SerializerAPI.Clean() end
 	Ruby.SerializerAPI = require(mainAPI)
 	Ruby.SerializerAPI.Init()
 	Ruby.Exporter = require(mainWriting)
@@ -217,8 +218,12 @@ end
 
 function Ruby.refetch()
 	Ruby.Active = false
-	Ruby.Plugin:Deactivate()
-	Ruby.Folder:Destroy()
+	if Ruby.Plugin then
+		Ruby.Plugin:Deactivate()
+	end
+	if Ruby.Folder then
+		Ruby.Folder:Destroy()
+	end
 	Ruby.fetch()
 end
 
